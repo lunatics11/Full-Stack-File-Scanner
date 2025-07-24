@@ -1,0 +1,1213 @@
+{% extends "base.html" %}
+
+{% block content %}
+<!-- Video Background Container -->
+<div id="video-container">
+    <video autoplay muted loop playsinline id="bg-video" poster="{{ url_for('static', filename='images/video-poster.jpg') }}">
+        <!-- Fallback content -->
+        <img src="{{ url_for('static', filename='images/fallback-bg.jpg') }}" style="display:none;" id="fallback-img">
+    </video>
+    <div id="video-loading-overlay" class="video-loading">
+        <div class="video-loading-spinner"></div>
+        <div class="video-loading-text">Loading Secure Environment...</div>
+    </div>
+</div>
+
+<!-- Main Content Container -->
+<div class="results-container">
+    <div class="results-header">
+        <h1 class="neon-title">Analysis Results</h1>
+        <h2 class="file-name">{{ results.basic_info.filename }}</h2>
+    </div>
+
+    <!-- Section 1: Summary -->
+    <div class="result-card {% if results.scanners.is_malicious %}danger-card{% endif %}">
+        <div class="card-header">
+            <h2><i class="fas fa-file-alt"></i> Summary</h2>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="info-section">
+                        <h3><i class="fas fa-info-circle"></i> File Information</h3>
+                        <div class="info-grid">
+                            <div class="info-label">Size:</div>
+                            <div class="info-value">{{ results.basic_info.file_size|filesizeformat }}</div>
+
+                            <div class="info-label">Analysis Time:</div>
+                            <div class="info-value">{{ "%.2f"|format(results.analysis_time) }} seconds</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-md-6">
+                    <div class="info-section">
+                        <h3><i class="fas fa-shield-alt"></i> Security Status</h3>
+                        {% if results.scanners.is_malicious %}
+                            <div class="alert-danger">
+                                <h4><i class="fas fa-skull-crossbones"></i> Malicious Content Detected</h4>
+                                <p>Detected by {{ results.scanners.detected_by|join(', ') }}</p>
+                            </div>
+                        {% else %}
+                            <div class="alert-success">
+                                <h4><i class="fas fa-check-circle"></i> No Malicious Content Found</h4>
+                            </div>
+                        {% endif %}
+
+                        {% if results.upx.packed %}
+                            <div class="alert-warning">
+                                <h4><i class="fas fa-archive"></i> UPX Packed</h4>
+                                <p>Original: {{ results.upx.original_size|filesizeformat }}</p>
+                                {% if results.upx.unpacked %}
+                                    <p>Unpacked: {{ results.upx.unpacked_size|filesizeformat }}</p>
+                                {% else %}
+                                    <p class="error-text">Failed to unpack: {{ results.upx.error }}</p>
+                                {% endif %}
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Section 2: Security Detection -->
+    <div class="result-card">
+        <div class="card-header">
+            <h2><i class="fas fa-shield-alt"></i> Security Detection</h2>
+        </div>
+        <div class="card-body">
+            <div class="tabs-container">
+                <ul class="nav nav-tabs" id="securityTabs" role="tablist">
+                    <li class="nav-item">
+                        <a class="nav-link active" id="virustotal-tab" data-toggle="tab" href="#virustotal" role="tab">
+                            <i class="fas fa-virus"></i> VirusTotal
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" id="yara-tab" data-toggle="tab" href="#yara" role="tab">
+                            <i class="fas fa-search-plus"></i> YARA Rules
+                        </a>
+                    </li>
+                </ul>
+
+                <div class="tab-content" id="securityTabsContent">
+                    <!-- VirusTotal Tab -->
+                    <div class="tab-pane fade show active" id="virustotal" role="tabpanel">
+                        {% if 'scanners' in results and 'virustotal' in results.scanners and results.scanners.virustotal.error %}
+                            <div class="error-box">
+                                <h5><i class="fas fa-exclamation-triangle"></i> VirusTotal Scan Failed</h5>
+                                <p>{{ results.scanners.virustotal.error }}</p>
+                                {% if results.scanners.virustotal.permalink %}
+                                    <a href="{{ results.scanners.virustotal.permalink }}" target="_blank" class="btn-cyber">
+                                        <i class="fas fa-external-link-alt"></i> Try Manual Submission
+                                    </a>
+                                {% endif %}
+                            </div>
+                        {% elif 'scanners' in results and 'virustotal' in results.scanners and (not results.scanners.virustotal or results.scanners.virustotal.response_code == 0) %}
+                            <div class="warning-box">
+                                <h5><i class="fas fa-search"></i> File Not Found in VirusTotal</h5>
+                                <p>This file has not been scanned by VirusTotal yet.</p>
+                                {% if results.scanners.virustotal.permalink %}
+                                    <a href="{{ results.scanners.virustotal.permalink }}" target="_blank" class="btn-cyber">
+                                        <i class="fas fa-external-link-alt"></i> Submit for Analysis
+                                    </a>
+                                {% endif %}
+                            </div>
+                        {% elif 'scanners' in results and 'virustotal' in results.scanners %}
+                            <div class="{% if results.scanners.virustotal.positives > 0 %}danger-box{% else %}success-box{% endif %}">
+                                <h5>
+                                    <i class="fas fa-{% if results.scanners.virustotal.positives > 0 %}virus{% else %}shield-alt{% endif %}"></i>
+                                    Detections: {{ results.scanners.virustotal.positives }}/{{ results.scanners.virustotal.total }}
+                                </h5>
+                                {% if results.scanners.virustotal.permalink %}
+                                    <a href="{{ results.scanners.virustotal.permalink }}" target="_blank" class="btn-cyber-outline">
+                                        <i class="fas fa-external-link-alt"></i> View Full Report
+                                    </a>
+                                {% endif %}
+                            </div>
+
+                            {% if results.scanners.virustotal.scans %}
+                                <div class="scanner-table-container">
+                                    <table class="scanner-table">
+                                        <thead>
+                                            <tr>
+                                                <th>Scanner</th>
+                                                <th>Result</th>
+                                                <th>Version</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {% for scanner, data in results.scanners.virustotal.scans.items() %}
+                                                <tr class="{% if data.detected %}danger-row{% endif %}">
+                                                    <td>{{ scanner }}</td>
+                                                    <td>{{ data.result if data.detected else 'Clean' }}</td>
+                                                    <td>{{ data.version }}</td>
+                                                </tr>
+                                            {% endfor %}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            {% endif %}
+                        {% else %}
+                            <div class="info-box">
+                                <i class="fas fa-info-circle"></i> No VirusTotal scan results available
+                            </div>
+                        {% endif %}
+                    </div>
+
+                    <!-- YARA Rules Tab -->
+                    <div class="tab-pane fade" id="yara" role="tabpanel">
+                        <div class="yara-intro">
+                            <h4><i class="fas fa-shield-alt"></i> About YARA Rules</h4>
+                            <p>YARA is a powerful pattern-matching tool used to identify and classify malware.</p>
+                        </div>
+
+                        {% if 'scanners' in results and 'yara' in results.scanners and results.scanners.yara.error %}
+                            <div class="error-box">
+                                <h5><i class="fas fa-exclamation-triangle"></i> YARA Analysis Error</h5>
+                                <p>{{ results.scanners.yara.error }}</p>
+                            </div>
+                        {% elif 'scanners' in results and 'yara' in results.scanners %}
+                            <div class="yara-stats">
+                                <div class="stat-card">
+                                    <div class="stat-value">{{ results.scanners.yara.rules_loaded }}</div>
+                                    <div class="stat-label">Rules Loaded</div>
+                                </div>
+                                <div class="stat-card {% if results.scanners.yara.matches %}danger-card{% endif %}">
+                                    <div class="stat-value">{{ results.scanners.yara.matches|length }}</div>
+                                    <div class="stat-label">Matches Found</div>
+                                </div>
+                            </div>
+
+                            {% if results.scanners.yara.matches %}
+                                <div class="yara-matches-container">
+                                    {% for match in results.scanners.yara.matches %}
+                                        <div class="yara-match-card">
+                                            <div class="match-header">
+                                                <span class="rule-name">{{ match.rule }}</span>
+                                                <span class="rule-tags">
+                                                    {% for tag in match.tags %}
+                                                        <span class="tag">{{ tag }}</span>
+                                                    {% endfor %}
+                                                </span>
+                                            </div>
+
+                                            {% if match.meta.description %}
+                                                <div class="rule-description">
+                                                    {{ match.meta.description }}
+                                                </div>
+                                            {% endif %}
+
+                                            <div class="match-details">
+                                                <button class="btn-cyber-outline toggle-details" data-target="yara-match-{{ loop.index }}">
+                                                    <i class="fas fa-chevron-down"></i> Show Details
+                                                </button>
+                                                <div id="yara-match-{{ loop.index }}" class="match-strings" style="display: none;">
+                                                    <h6>Matching Strings:</h6>
+                                                    <ul>
+                                                        {% for string in match.strings %}
+                                                            <li><code>{{ string }}</code></li>
+                                                        {% endfor %}
+                                                    </ul>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    {% endfor %}
+                                </div>
+                            {% else %}
+                                <div class="success-box">
+                                    <i class="fas fa-check-circle"></i> No YARA rule matches found
+                                </div>
+                            {% endif %}
+                        {% else %}
+                            <div class="info-box">
+                                <i class="fas fa-info-circle"></i> No YARA analysis performed
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Section 3: File Analysis -->
+    <div class="result-card">
+        <div class="card-header">
+            <h2><i class="fas fa-search"></i> File Analysis</h2>
+        </div>
+        <div class="card-body">
+            <div class="tabs-container">
+                <ul class="nav nav-tabs" id="analysisTabs" role="tablist">
+                    <li class="nav-item">
+                        <a class="nav-link active" id="metadata-tab" data-toggle="tab" href="#metadata" role="tab">
+                            <i class="fas fa-tags"></i> Metadata
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" id="hashes-tab" data-toggle="tab" href="#hashes" role="tab">
+                            <i class="fas fa-fingerprint"></i> Hashes
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" id="radare-tab" data-toggle="tab" href="#radare" role="tab">
+                            <i class="fas fa-microchip"></i> Radare2
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" id="strings-tab" data-toggle="tab" href="#strings" role="tab">
+                            <i class="fas fa-align-left"></i> Strings
+                        </a>
+                    </li>
+                </ul>
+
+                <div class="tab-content" id="analysisTabsContent">
+                    <!-- Metadata Tab -->
+                    <div class="tab-pane fade show active" id="metadata" role="tabpanel">
+                        {% if 'exiftool' in results and results.exiftool.error %}
+                            <div class="error-box">
+                                <i class="fas fa-exclamation-triangle"></i> {{ results.exiftool.error }}
+                            </div>
+                        {% elif 'exiftool' in results and results.exiftool.data %}
+                            <div class="metadata-container">
+                                <div class="metadata-grid">
+                                    {% for key, value in results.exiftool.data.items() %}
+                                        <div class="metadata-item">
+                                            <div class="metadata-key">{{ key }}</div>
+                                            <div class="metadata-value">{{ value }}</div>
+                                        </div>
+                                    {% endfor %}
+                                </div>
+                            </div>
+                        {% else %}
+                            <div class="info-box">
+                                <i class="fas fa-info-circle"></i> No metadata available for this file
+                            </div>
+                        {% endif %}
+                    </div>
+
+                    <!-- Hashes Tab -->
+                    <div class="tab-pane fade" id="hashes" role="tabpanel">
+                        <div class="hashes-intro">
+                            <h4><i class="fas fa-fingerprint"></i> File Hashes</h4>
+                            <p>Cryptographic hashes provide unique fingerprints for files. These are commonly used for:</p>
+                            <ul class="features-list">
+                                <li>File identification and verification</li>
+                                <li>Malware detection and tracking</li>
+                                <li>Integrity checking</li>
+                            </ul>
+                        </div>
+
+                        <div class="hashes-container">
+                            <div class="hash-card">
+                                <div class="hash-header">
+                                    <i class="fas fa-hashtag"></i> MD5
+                                </div>
+                                <div class="hash-value" onclick="copyToClipboard(this)">
+                                    {{ results.basic_info.hashes.md5 }}
+                                </div>
+                            </div>
+
+                            <div class="hash-card">
+                                <div class="hash-header">
+                                    <i class="fas fa-hashtag"></i> SHA1
+                                </div>
+                                <div class="hash-value" onclick="copyToClipboard(this)">
+                                    {{ results.basic_info.hashes.sha1 }}
+                                </div>
+                            </div>
+
+                            <div class="hash-card">
+                                <div class="hash-header">
+                                    <i class="fas fa-hashtag"></i> SHA256
+                                </div>
+                                <div class="hash-value" onclick="copyToClipboard(this)">
+                                    {{ results.basic_info.hashes.sha256 }}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Radare2 Tab -->
+                    <div class="tab-pane fade" id="radare" role="tabpanel">
+                        {% if 'radare2' in results and results.radare2.error %}
+                            <div class="error-box">
+                                <i class="fas fa-exclamation-triangle"></i> {{ results.radare2.error }}
+                            </div>
+                        {% elif 'radare2' in results and results.radare2.data %}
+                            <div class="radare-header">
+                                <h4><i class="fas fa-microchip"></i> Radare2 Analysis</h4>
+                                <p>Static analysis results from radare2:</p>
+                            </div>
+                            <div class="radare-container">
+                                <pre class="code-block">{{ results.radare2.data|tojson(indent=2) }}</pre>
+                            </div>
+                        {% else %}
+                            <div class="info-box">
+                                <i class="fas fa-info-circle"></i> No Radare2 analysis available
+                            </div>
+                        {% endif %}
+                    </div>
+
+                    <!-- Strings Tab -->
+                    <div class="tab-pane fade" id="strings" role="tabpanel">
+                        {% if 'strings' in results and results.strings.error %}
+                            <div class="error-box">
+                                <i class="fas fa-exclamation-triangle"></i> {{ results.strings.error }}
+                            </div>
+                        {% elif 'strings' in results and results.strings.strings %}
+                            <div class="strings-intro">
+                                <h4><i class="fas fa-align-left"></i> Strings Analysis</h4>
+                                <p>Extracted human-readable strings from the binary:</p>
+                                <ul class="features-list">
+                                    <li>Reveals potential indicators like file paths, URLs, and API calls</li>
+                                    <li>Can uncover hidden functionality or malware signatures</li>
+                                    <li>Useful for debugging and reverse engineering</li>
+                                </ul>
+                            </div>
+
+                            <div class="strings-controls">
+                                <div class="controls-left">
+                                    <div class="search-box">
+                                        <i class="fas fa-search"></i>
+                                        <input type="text" id="stringSearch" placeholder="Search strings...">
+                                    </div>
+                                </div>
+                                <div class="controls-right">
+                                    <span class="count-badge">
+                                        {{ results.strings.count }} strings found
+                                    </span>
+                                </div>
+                            </div>
+
+                            <div class="strings-display">
+                                <div id="allStrings" class="strings-list-container">
+                                    <h5><i class="fas fa-list"></i> All Strings</h5>
+                                    <div class="strings-grid" id="allStringsGrid">
+                                        {% for string in results.strings.strings %}
+                                            <div class="string-item">
+                                                <code>{{ string }}</code>
+                                                <button class="copy-btn" onclick="copyString(this)" title="Copy to clipboard">
+                                                    <i class="far fa-copy"></i>
+                                                </button>
+                                            </div>
+                                        {% endfor %}
+                                    </div>
+                                </div>
+                            </div>
+                        {% else %}
+                            <div class="info-box">
+                                <i class="fas fa-info-circle"></i> No strings extracted from this file
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    /* Video container styling */
+    #video-container {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        z-index: -1;
+        overflow: hidden;
+        background: radial-gradient(circle, rgba(11,18,31,1) 0%, rgba(5,12,21,1) 100%);
+    }
+
+    #bg-video {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        min-width: 100%;
+        min-height: 100%;
+        width: auto;
+        height: auto;
+        transform: translate(-50%, -50%);
+        opacity: 0;
+        filter: blur(2px) brightness(0.8);
+        object-fit: cover;
+        transition: opacity 1.5s ease-out;
+    }
+
+    /* Loading overlay styling */
+    .video-loading {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(11, 18, 31, 0.95);
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        z-index: 999;
+        color: #39ff14;
+        font-family: monospace;
+        transition: opacity 0.5s ease;
+    }
+
+    .video-loading-spinner {
+        width: 50px;
+        height: 50px;
+        border: 3px solid rgba(57, 255, 20, 0.3);
+        border-radius: 50%;
+        border-top-color: #39ff14;
+        animation: spin 1s linear infinite;
+        margin-bottom: 15px;
+    }
+
+    .video-loading-text {
+        margin-top: 15px;
+        font-size: 1.1rem;
+        text-align: center;
+        text-shadow: 0 0 5px #39ff14;
+    }
+
+    @keyframes spin {
+        to { transform: rotate(360deg); }
+    }
+
+    /* Main content styling */
+    .results-container {
+        position: relative;
+        z-index: 10;
+        background: rgba(11, 18, 31, 0.85);
+        border-radius: 8px;
+        padding: 20px;
+        margin: 20px auto;
+        max-width: 1200px;
+        box-shadow: 0 0 30px rgba(0,0,0,0.5);
+    }
+
+    /* Tabs styling */
+    .tabs-container {
+        margin-top: 15px;
+    }
+
+    .nav-tabs {
+        border-bottom: 1px solid rgba(57, 255, 20, 0.3);
+    }
+
+    .nav-tabs .nav-link {
+        color: #a5d6a7;
+        border: 1px solid transparent;
+        border-top-left-radius: 4px;
+        border-top-right-radius: 4px;
+        padding: 10px 15px;
+        margin-right: 5px;
+        font-size: 0.9rem;
+        transition: all 0.3s ease;
+    }
+
+    .nav-tabs .nav-link:hover {
+        border-color: rgba(57, 255, 20, 0.3);
+        color: #39ff14;
+    }
+
+    .nav-tabs .nav-link.active {
+        color: #39ff14;
+        background-color: rgba(11, 18, 31, 0.9);
+        border-color: rgba(57, 255, 20, 0.3);
+        border-bottom-color: transparent;
+    }
+
+    .tab-content {
+        padding: 15px 0;
+    }
+
+    /* Strings section styling */
+    .strings-controls {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 15px;
+    }
+
+    .search-box {
+        position: relative;
+        flex-grow: 1;
+    }
+
+    .search-box i {
+        position: absolute;
+        left: 10px;
+        top: 10px;
+        color: #39ff14;
+    }
+
+    .search-box input {
+        width: 100%;
+        padding: 8px 10px 8px 35px;
+        background: rgba(20, 25, 30, 0.8);
+        border: 1px solid #39ff14;
+        border-radius: 4px;
+        color: white;
+        transition: all 0.3s ease;
+    }
+
+    .search-box input:focus {
+        outline: none;
+        box-shadow: 0 0 10px rgba(57, 255, 20, 0.3);
+    }
+
+    .count-badge {
+        background: rgba(57, 255, 20, 0.2);
+        padding: 5px 10px;
+        border-radius: 4px;
+        font-size: 0.9rem;
+        margin-left: 10px;
+    }
+
+    .strings-grid {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 5px;
+        max-height: 500px;
+        overflow-y: auto;
+    }
+
+    .string-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        background: rgba(20, 25, 30, 0.8);
+        padding: 8px 12px;
+        border-radius: 4px;
+        border-left: 3px solid #39ff14;
+        transition: all 0.2s ease;
+    }
+
+    .string-item:hover {
+        background: rgba(30, 35, 40, 0.9);
+    }
+
+    .string-item code {
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        font-family: monospace;
+    }
+
+    .copy-btn {
+        background: transparent;
+        border: none;
+        color: #39ff14;
+        cursor: pointer;
+        padding: 0 5px;
+        transition: color 0.2s;
+    }
+
+    .copy-btn:hover {
+        color: #a5d6a7;
+    }
+
+    /* Neon title animation */
+    .neon-title {
+        color: #39ff14;
+        font-size: 2.5rem;
+        margin-bottom: 0.5rem;
+        text-shadow: 0 0 5px #39ff14;
+        animation: neon-pulse 1.5s infinite alternate;
+    }
+
+    @keyframes neon-pulse {
+        from {
+            text-shadow: 0 0 5px #39ff14, 0 0 10px #39ff14;
+        }
+        to {
+            text-shadow: 0 0 10px #39ff14, 0 0 20px #39ff14, 0 0 30px #39ff14;
+        }
+    }
+
+    /* Card styling */
+    .result-card {
+        background: rgba(20, 25, 30, 0.8);
+        border-radius: 8px;
+        margin-bottom: 20px;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+        border: 1px solid rgba(57, 255, 20, 0.1);
+    }
+
+    .result-card.danger-card {
+        border-left: 4px solid #ff4444;
+    }
+
+    .card-header {
+        padding: 15px 20px;
+        border-bottom: 1px solid rgba(57, 255, 20, 0.1);
+    }
+
+    .card-header h2 {
+        margin: 0;
+        color: #39ff14;
+        font-size: 1.5rem;
+    }
+
+    .card-body {
+        padding: 20px;
+    }
+
+    /* Alert boxes */
+    .alert-danger {
+        background: rgba(255, 68, 68, 0.15);
+        border-left: 4px solid #ff4444;
+        padding: 15px;
+        margin-bottom: 15px;
+        border-radius: 4px;
+    }
+
+    .alert-success {
+        background: rgba(57, 255, 20, 0.15);
+        border-left: 4px solid #39ff14;
+        padding: 15px;
+        margin-bottom: 15px;
+        border-radius: 4px;
+    }
+
+    .alert-warning {
+        background: rgba(255, 193, 7, 0.15);
+        border-left: 4px solid #ffc107;
+        padding: 15px;
+        margin-bottom: 15px;
+        border-radius: 4px;
+    }
+
+    /* Info grid */
+    .info-grid {
+        display: grid;
+        grid-template-columns: auto 1fr;
+        gap: 10px 15px;
+    }
+
+    .info-label {
+        color: #a5d6a7;
+        font-weight: bold;
+    }
+
+    .info-value {
+        color: #ffffff;
+        word-break: break-all;
+    }
+
+    /* Status boxes */
+    .error-box, .warning-box, .success-box, .info-box, .danger-box {
+        padding: 15px;
+        border-radius: 4px;
+        margin-bottom: 15px;
+    }
+
+    .error-box {
+        background: rgba(255, 68, 68, 0.15);
+        border-left: 4px solid #ff4444;
+    }
+
+    .warning-box {
+        background: rgba(255, 193, 7, 0.15);
+        border-left: 4px solid #ffc107;
+    }
+
+    .success-box {
+        background: rgba(57, 255, 20, 0.15);
+        border-left: 4px solid #39ff14;
+    }
+
+    .info-box {
+        background: rgba(33, 150, 243, 0.15);
+        border-left: 4px solid #2196f3;
+    }
+
+    .danger-box {
+        background: rgba(255, 68, 68, 0.15);
+        border-left: 4px solid #ff4444;
+    }
+
+    /* Scanner table */
+    .scanner-table-container {
+        overflow-x: auto;
+    }
+
+    .scanner-table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+
+    .scanner-table th, .scanner-table td {
+        padding: 10px 15px;
+        text-align: left;
+        border-bottom: 1px solid rgba(57, 255, 20, 0.1);
+    }
+
+    .scanner-table th {
+        color: #39ff14;
+        font-weight: bold;
+    }
+
+    .scanner-table tr:hover {
+        background: rgba(57, 255, 20, 0.05);
+    }
+
+    .danger-row {
+        background: rgba(255, 68, 68, 0.1);
+    }
+
+    /* YARA stats */
+    .yara-stats {
+        display: flex;
+        gap: 15px;
+        margin-bottom: 20px;
+    }
+
+    .stat-card {
+        flex: 1;
+        background: rgba(20, 25, 30, 0.8);
+        border-radius: 8px;
+        padding: 15px;
+        text-align: center;
+        border: 1px solid rgba(57, 255, 20, 0.1);
+    }
+
+    .stat-card.danger-card {
+        border-left: 4px solid #ff4444;
+    }
+
+    .stat-value {
+        font-size: 2rem;
+        color: #39ff14;
+        font-weight: bold;
+        margin-bottom: 5px;
+    }
+
+    .stat-label {
+        color: #a5d6a7;
+        font-size: 0.9rem;
+    }
+
+    /* YARA matches */
+    .yara-match-card {
+        background: rgba(20, 25, 30, 0.8);
+        border-radius: 8px;
+        padding: 15px;
+        margin-bottom: 15px;
+        border: 1px solid rgba(57, 255, 20, 0.1);
+    }
+
+    .match-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 10px;
+    }
+
+    .rule-name {
+        color: #39ff14;
+        font-weight: bold;
+        font-size: 1.1rem;
+    }
+
+    .rule-tags {
+        display: flex;
+        gap: 5px;
+    }
+
+    .tag {
+        background: rgba(57, 255, 20, 0.2);
+        color: #39ff14;
+        padding: 3px 8px;
+        border-radius: 4px;
+        font-size: 0.8rem;
+    }
+
+    .rule-description {
+        color: #a5d6a7;
+        margin-bottom: 10px;
+        font-style: italic;
+    }
+
+    .match-strings {
+        background: rgba(11, 18, 31, 0.8);
+        padding: 10px;
+        border-radius: 4px;
+        margin-top: 10px;
+    }
+
+    /* Metadata grid */
+    .metadata-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+        gap: 10px;
+    }
+
+    .metadata-item {
+        background: rgba(20, 25, 30, 0.8);
+        padding: 10px;
+        border-radius: 4px;
+        border-left: 3px solid #39ff14;
+    }
+
+    .metadata-key {
+        color: #39ff14;
+        font-weight: bold;
+        margin-bottom: 5px;
+    }
+
+    .metadata-value {
+        color: #ffffff;
+        word-break: break-all;
+    }
+
+    /* Hashes */
+    .hashes-container {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+        gap: 15px;
+    }
+
+    .hash-card {
+        background: rgba(20, 25, 30, 0.8);
+        border-radius: 8px;
+        overflow: hidden;
+        border: 1px solid rgba(57, 255, 20, 0.1);
+    }
+
+    .hash-header {
+        background: rgba(57, 255, 20, 0.1);
+        padding: 10px 15px;
+        color: #39ff14;
+        font-weight: bold;
+    }
+
+    .hash-value {
+        padding: 15px;
+        color: #ffffff;
+        word-break: break-all;
+        cursor: pointer;
+        transition: background 0.2s;
+    }
+
+    .hash-value:hover {
+        background: rgba(57, 255, 20, 0.05);
+    }
+
+    /* Radare2 code block */
+    .code-block {
+        background: rgba(11, 18, 31, 0.8);
+        padding: 15px;
+        border-radius: 4px;
+        overflow-x: auto;
+        font-family: monospace;
+        color: #a5d6a7;
+        border-left: 3px solid #39ff14;
+    }
+
+    /* Buttons */
+    .btn-cyber {
+        display: inline-block;
+        background: rgba(57, 255, 20, 0.2);
+        color: #39ff14;
+        padding: 8px 15px;
+        border-radius: 4px;
+        text-decoration: none;
+        transition: all 0.3s ease;
+        border: 1px solid #39ff14;
+        margin-top: 10px;
+    }
+
+    .btn-cyber:hover {
+        background: rgba(57, 255, 20, 0.3);
+        color: #ffffff;
+        text-decoration: none;
+    }
+
+    .btn-cyber-outline {
+        display: inline-block;
+        background: transparent;
+        color: #39ff14;
+        padding: 8px 15px;
+        border-radius: 4px;
+        text-decoration: none;
+        transition: all 0.3s ease;
+        border: 1px solid #39ff14;
+        margin-top: 10px;
+    }
+
+    .btn-cyber-outline:hover {
+        background: rgba(57, 255, 20, 0.1);
+        color: #ffffff;
+        text-decoration: none;
+    }
+
+    /* Responsive adjustments */
+    @media (max-width: 768px) {
+        .results-container {
+            padding: 15px;
+            margin: 15px;
+        }
+
+        .row {
+            flex-direction: column;
+        }
+
+        .col-md-6 {
+            width: 100%;
+        }
+
+        .hashes-container {
+            grid-template-columns: 1fr;
+        }
+
+        .metadata-grid {
+            grid-template-columns: 1fr;
+        }
+
+        .yara-stats {
+            flex-direction: column;
+        }
+    }
+</style>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Video configuration - update with your actual video filenames
+    const videoConfig = {
+        videos: [
+            "cyber_network.mp4",
+            "matrix_code.mp4",
+            "neon_grid.mp4",
+            "binary_flow.mp4",
+            "digital_circuits.mp4",
+            "hacker_ui.mp4",
+            "tech_waves.mp4",
+            "data_stream.mp4",
+            "quantum_dots.mp4"
+        ],
+        basePath: "{{ url_for('static', filename='videos/') }}",
+        fallbackImage: "{{ url_for('static', filename='images/fallback-bg.jpg') }}",
+        loadingOverlay: document.getElementById('video-loading-overlay'),
+        maxRetries: 3,
+        retryDelay: 1000
+    };
+
+    // Robust video manager with multiple fallbacks
+    const videoManager = {
+        currentVideo: null,
+        retryCount: 0,
+
+        init: function() {
+            console.log("Initializing video background system");
+            this.loadRandomVideo();
+        },
+
+        loadRandomVideo: function() {
+            const randomIndex = Math.floor(Math.random() * videoConfig.videos.length);
+            this.currentVideo = videoConfig.videos[randomIndex];
+            this.loadVideo(this.currentVideo);
+        },
+
+        loadVideo: function(videoName) {
+            const videoElement = document.getElementById('bg-video');
+            const fallbackImg = document.getElementById('fallback-img');
+
+            if (!videoElement) {
+                console.error("Video element not found");
+                this.activateFallback();
+                return;
+            }
+
+            console.log(`Attempting to load: ${videoConfig.basePath}${videoName}`);
+
+            // Reset video element
+            videoElement.innerHTML = '';
+            videoElement.style.opacity = '0';
+
+            // Create source element
+            const source = document.createElement('source');
+            source.src = videoConfig.basePath + videoName;
+            source.type = 'video/mp4';
+            videoElement.appendChild(source);
+
+            // Event handlers
+            const handleLoad = () => {
+                console.log(`Successfully loaded: ${videoName}`);
+                videoElement.style.opacity = '0.25';
+                this.hideLoading();
+
+                // Attempt playback
+                videoElement.play()
+                    .then(() => console.log("Video playback started"))
+                    .catch(err => {
+                        console.log("Autoplay blocked, trying muted:", err);
+                        videoElement.muted = true;
+                        videoElement.play()
+                            .then(() => console.log("Muted playback started"))
+                            .catch(e => {
+                                console.error("Failed to play video:", e);
+                                this.activateFallback();
+                            });
+                    });
+            };
+
+            const handleError = () => {
+                console.error(`Failed to load: ${videoName}`);
+                this.retryCount++;
+
+                if (this.retryCount <= videoConfig.maxRetries) {
+                    console.log(`Retrying (${this.retryCount}/${videoConfig.maxRetries})...`);
+                    setTimeout(() => this.loadRandomVideo(), videoConfig.retryDelay);
+                } else {
+                    console.log("Max retries reached");
+                    this.activateFallback();
+                }
+            };
+
+            // Set up event listeners
+            videoElement.onloadeddata = handleLoad;
+            videoElement.onerror = handleError;
+            videoElement.onended = () => {
+                console.log("Video ended, loading next");
+                this.retryCount = 0;
+                this.loadRandomVideo();
+            };
+
+            // Start loading
+            videoElement.load();
+        },
+
+        activateFallback: function() {
+            console.log("Activating fallback system");
+            const container = document.getElementById('video-container');
+            const videoElement = document.getElementById('bg-video');
+            const fallbackImg = document.getElementById('fallback-img');
+
+            if (!container) return;
+
+            // Hide video if exists
+            if (videoElement) {
+                videoElement.style.display = 'none';
+            }
+
+            // Show fallback image
+            if (fallbackImg) {
+                fallbackImg.style.display = 'block';
+                fallbackImg.style.width = '100%';
+                fallbackImg.style.height = '100%';
+                fallbackImg.style.objectFit = 'cover';
+                fallbackImg.style.opacity = '0.2';
+                fallbackImg.style.position = 'absolute';
+                fallbackImg.style.top = '0';
+                fallbackImg.style.left = '0';
+            }
+
+            // Ensure gradient background
+            container.style.background = `
+                radial-gradient(circle,
+                    rgba(11,18,31,1) 0%,
+                    rgba(5,12,21,1) 100%
+                )`;
+
+            this.hideLoading();
+        },
+
+        hideLoading: function() {
+            if (videoConfig.loadingOverlay) {
+                videoConfig.loadingOverlay.style.opacity = '0';
+                setTimeout(() => {
+                    videoConfig.loadingOverlay.style.display = 'none';
+                }, 500);
+            }
+        }
+    };
+
+    // Initialize with delay
+    setTimeout(() => {
+        videoManager.init();
+    }, 300);
+
+    // [Rest of your existing JavaScript functionality]
+    // Initialize tabs
+    $('#securityTabs a').on('shown.bs.tab', function (e) {
+        localStorage.setItem('securityActiveTab', $(e.target).attr('href'));
+    });
+
+    $('#analysisTabs a').on('shown.bs.tab', function (e) {
+        localStorage.setItem('analysisActiveTab', $(e.target).attr('href'));
+    });
+
+    // Restore active tabs
+    var securityActiveTab = localStorage.getItem('securityActiveTab');
+    if (securityActiveTab) {
+        $('#securityTabs a[href="' + securityActiveTab + '"]').tab('show');
+    }
+
+    var analysisActiveTab = localStorage.getItem('analysisActiveTab');
+    if (analysisActiveTab) {
+        $('#analysisTabs a[href="' + analysisActiveTab + '"]').tab('show');
+    }
+
+    // String search functionality
+    const stringSearch = document.getElementById('stringSearch');
+    if (stringSearch) {
+        stringSearch.addEventListener('input', function() {
+            const searchTerm = this.value.toLowerCase();
+            const container = document.getElementById('allStringsGrid');
+            if (container) {
+                const items = container.querySelectorAll('.string-item');
+                items.forEach(item => {
+                    const text = item.textContent.toLowerCase();
+                    item.style.display = text.includes(searchTerm) ? 'flex' : 'none';
+                });
+            }
+        });
+    }
+
+    // Toggle YARA match details
+    document.querySelectorAll('.toggle-details').forEach(button => {
+        button.addEventListener('click', function() {
+            const target = document.getElementById(this.dataset.target);
+            const icon = this.querySelector('i');
+
+            if (target.style.display === 'none') {
+                target.style.display = 'block';
+                icon.classList.remove('fa-chevron-down');
+                icon.classList.add('fa-chevron-up');
+                this.innerHTML = this.innerHTML.replace('Show', 'Hide');
+            } else {
+                target.style.display = 'none';
+                icon.classList.remove('fa-chevron-up');
+                icon.classList.add('fa-chevron-down');
+                this.innerHTML = this.innerHTML.replace('Hide', 'Show');
+            }
+        });
+    });
+
+    // Clipboard functions
+    function copyString(button) {
+        const string = button.parentElement.querySelector('code').textContent;
+        navigator.clipboard.writeText(string).then(() => {
+            const originalIcon = button.innerHTML;
+            button.innerHTML = '<i class="fas fa-check"></i>';
+            setTimeout(() => {
+                button.innerHTML = originalIcon;
+            }, 2000);
+        });
+    }
+
+    function copyToClipboard(element) {
+        const text = element.textContent;
+        navigator.clipboard.writeText(text).then(() => {
+            const originalText = element.textContent;
+            element.textContent = 'Copied!';
+            setTimeout(() => {
+                element.textContent = originalText;
+            }, 2000);
+        });
+    }
+});
+</script>
+{% endblock %}

@@ -1,0 +1,165 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="upload-page">
+    <div class="upload-header text-center">
+        <h1 class="scanner-title">File Scanner</h1>
+    </div>
+
+    <div class="upload-main">
+        {% if not scan_started %}
+        <form method="post" enctype="multipart/form-data" id="uploadForm" onsubmit="prepareUpload()">
+            <div class="file-upload-wrapper">
+                <label for="fileInput" class="upload-label">Select file to analyze:</label>
+                <div class="file-input-container">
+                    <input type="file" id="fileInput" name="file" required>
+                    <span class="file-name" id="fileName">No file selected</span>
+                    <button type="button" class="browse-btn" id="browseBtn">Browse</button>
+                </div>
+            </div>
+            <button type="submit" class="upload-btn">Upload & Scan</button>
+        </form>
+        {% else %}
+        <div class="scanning-container">
+            <h3 class="scanning-title">Scanning File</h3>
+            <div class="progress-container">
+                <div class="progress-bar" id="progressBar" style="width: 0%">
+                    <span class="progress-text">0%</span>
+                </div>
+            </div>
+            <p class="status-text" id="statusText">Starting analysis...</p>
+            <div class="results-link" id="resultsContainer" style="display: none;">
+                <a href="#" id="resultsLink" class="view-results-btn">View Results</a>
+            </div>
+            <div class="error-message" id="errorContainer" style="display: none;"></div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<script>
+// Video control with guaranteed stop
+(function() {
+    const video = document.getElementById('bg-video');
+    if (!video || window.location.pathname !== '/upload') return;
+
+    // Start with video visible and playing
+    video.style.display = 'block';
+    video.style.opacity = '0.25';
+    video.play().catch(e => console.log("Video play attempt:", e));
+
+    // 3.5 second smooth slowdown
+    const duration = 3500;
+    const startTime = performance.now();
+
+    function animate() {
+        const elapsed = performance.now() - startTime;
+        const progress = Math.min(elapsed / duration, 1);
+
+        // Ease-out effect for smooth deceleration
+        const easeOut = 1 - Math.pow(1 - progress, 3);
+
+        // Slow down playback (100% → 0%)
+        video.playbackRate = 1 - easeOut;
+
+        // Apply visual effects
+        video.style.opacity = 0.25 - (0.25 * easeOut);
+        video.style.filter = `blur(${3 * easeOut}px) brightness(${1 - (0.3 * easeOut)})`;
+
+        if (progress < 1) {
+            requestAnimationFrame(animate);
+        } else {
+            // Final stop - pause and hide video
+            video.pause();
+            video.style.display = 'none';
+        }
+    }
+
+    requestAnimationFrame(animate);
+})();
+
+// Prepare for upload
+function prepareUpload() {
+    const video = document.getElementById('bg-video');
+    if (video) {
+        video.pause();
+        video.style.display = 'none';
+    }
+
+    const uploadBtn = document.querySelector('.upload-btn');
+    if (uploadBtn) {
+        uploadBtn.disabled = true;
+        uploadBtn.textContent = 'Uploading...';
+    }
+}
+
+// File input handling
+document.addEventListener('DOMContentLoaded', function() {
+    const fileInput = document.getElementById('fileInput');
+    const fileNameDisplay = document.getElementById('fileName');
+    const browseBtn = document.getElementById('browseBtn');
+
+    if (browseBtn && fileInput) {
+        browseBtn.addEventListener('click', function(e) {
+            e.preventDefault();
+            fileInput.click();
+        });
+    }
+
+    if (fileInput && fileNameDisplay) {
+        fileInput.addEventListener('change', function() {
+            fileNameDisplay.textContent = this.files[0]?.name || 'No file selected';
+        });
+    }
+});
+
+{% if scan_started %}
+// Progress polling
+function checkProgress() {
+    fetch('/scan_status/{{ scan_id }}', {
+        headers: {
+            'Cache-Control': 'no-cache',
+            'Pragma': 'no-cache'
+        }
+    })
+    .then(response => {
+        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+        return response.json();
+    })
+    .then(data => {
+        // Update progress bar
+        const progressBar = document.getElementById('progressBar');
+        if (progressBar) {
+            progressBar.style.width = data.progress + '%';
+            progressBar.querySelector('.progress-text').textContent = data.progress + '%';
+        }
+
+        // Update status
+        document.getElementById('statusText').textContent = data.status;
+
+        // Handle errors
+        if (data.error) {
+            document.getElementById('errorContainer').textContent = data.error;
+            document.getElementById('errorContainer').style.display = 'block';
+            return;
+        }
+
+        // Handle completion
+        if (data.complete) {
+            document.getElementById('resultsLink').href = `/results/{{ scan_id }}`;
+            document.getElementById('resultsContainer').style.display = 'block';
+        } else {
+            setTimeout(checkProgress, 1000);
+        }
+    })
+    .catch(error => {
+        console.error('Progress check failed:', error);
+        setTimeout(checkProgress, 2000);
+    });
+}
+
+// Start progress checks
+window.addEventListener('load', checkProgress);
+{% endif %}
+</script>
+{% endblock %}
