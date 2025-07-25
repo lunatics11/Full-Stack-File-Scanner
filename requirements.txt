@@ -82,7 +82,7 @@ umsgpack==0.1.0
 urllib3_secure_extra==0.1.0
 uvloop==0.21.0
 watchdog==6.0.0
-web3==7.12.1
+web3==3.16.5
 websockets==15.0.1
 winloop==0.2.0
 wsaccel==0.6.7
