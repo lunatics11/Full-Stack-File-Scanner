@@ -87,7 +87,7 @@ websockets==15.0.1
 winloop==0.2.0
 wsaccel==0.6.7
 WTForms==3.2.1
-xmlrpclib==1.0.1
+#xmlrpclib==1.0.1
 xx==3.3.2
 yapf==0.43.0
 zlmdb==23.1.1
