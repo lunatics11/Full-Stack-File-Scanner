@@ -19,7 +19,7 @@ docutils==0.21.2
 dogpile.core==0.4.1
 ecdsa==0.19.1
 ens==0.6.1
-eth_abi==5.2.0
+eth_abi==0.5.0
 eth_account==0.13.7
 eth_keys==0.7.0
 eth_utils==5.3.0
