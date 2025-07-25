@@ -92,7 +92,7 @@ def scan_yara(filepath):
 
 def scan_virustotal(filepath):
     """Simplified and reliable VirusTotal scanning"""
-    if not current_app.config.get('VIRUSTOTAL_API_KEY'):
+    if not current_app.config.get('VT_API_KEY'):
         return {'error': 'API key not configured'}
 
     # First try to get existing report
@@ -103,7 +103,7 @@ def scan_virustotal(filepath):
         report_url = f'https://www.virustotal.com/api/v3/files/{file_hash}'
         report_response = requests.get(
             report_url,
-            headers={'x-apikey': current_app.config['VIRUSTOTAL_API_KEY']},
+            headers={'x-apikey': current_app.config['VT_API_KEY']},
             timeout=30
         )
         
@@ -130,7 +130,7 @@ def scan_virustotal(filepath):
         with open(filepath, 'rb') as f:
             response = requests.post(
                 'https://www.virustotal.com/api/v3/files',
-                headers={'x-apikey': current_app.config['VIRUSTOTAL_API_KEY']},
+                headers={'x-apikey': current_app.config['VT_API_KEY']},
                 files={'file': f},
                 timeout=60
             )
@@ -145,7 +145,7 @@ def scan_virustotal(filepath):
         time.sleep(15)
         report = requests.get(
             f'https://www.virustotal.com/api/v3/analyses/{analysis_id}',
-            headers={'x-apikey': current_app.config['VIRUSTOTAL_API_KEY']},
+            headers={'x-apikey': current_app.config['VT_API_KEY']},
             timeout=30
         )
 

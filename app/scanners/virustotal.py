@@ -9,7 +9,7 @@ logger = logging.getLogger(__name__)
 
 class VirusTotalScanner:
     def __init__(self):
-        self.api_key = current_app.config['VIRUSTOTAL_API_KEY']
+        self.api_key = current_app.config['VT_API_KEY']
         self.base_url = "https://www.virustotal.com/api/v3"
         self.timeout = 60
         self.last_request = 0
