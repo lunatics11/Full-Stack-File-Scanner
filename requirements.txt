@@ -9,7 +9,7 @@ chardet==5.2.0
 charset_normalizer==3.4.2
 ConfigParser==7.2.0
 contextlib2==21.6.0
-ctypes_snappy==1.03
+ctypes_snappy==1.2
 curio==1.6
 cx_Oracle==8.3.0
 Cython==3.1.2
