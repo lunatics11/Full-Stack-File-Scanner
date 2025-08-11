@@ -54,7 +54,7 @@ passlib==1.7.4
 path.py==12.5.0
 Pillow==11.3.0
 pkg1==0.0.3
-protobuf==6.31.1
+protobuf==3.20.3
 psutil==7.0.0
 py_eth_sig_utils==0.4.0
 pycryptodome==3.23.0
