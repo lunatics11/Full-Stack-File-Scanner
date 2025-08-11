@@ -18,7 +18,7 @@ dl==0.1.0
 docutils==0.21.2
 dogpile.core==0.4.1
 ecdsa==0.19.1
-ens==0.6.1
+ens>=0.8.0
 eth-abi>=4.0.0
 eth-account>=0.8.0
 eth_keys==0.7.0
