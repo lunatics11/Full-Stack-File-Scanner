@@ -40,7 +40,7 @@ ipywidgets==8.1.7
 keyring==25.6.0
 lingua==4.15.0
 lxml==6.0.0
-mask==1.0.1
+mask==1.0.0a1
 matplotlib==3.10.3
 mnemonic==0.21
 mod==0.3.0
