@@ -83,7 +83,7 @@ urllib3_secure_extra==0.1.0
 uvloop==0.21.0
 watchdog==6.0.0
 web3==5.18.0
-websockets==8.1.0
+websockets==9.0.0
 winloop==0.2.0
 wsaccel==0.6.7
 WTForms==3.2.1
