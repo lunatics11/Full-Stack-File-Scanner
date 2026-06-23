@@ -1,17 +1,6 @@
 {% extends "base.html" %}
 
 {% block content %}
-<!-- Video Background Container -->
-<div id="video-container">
-    <video autoplay muted loop playsinline id="bg-video" poster="{{ url_for('static', filename='images/video-poster.jpg') }}">
-        <!-- Fallback content -->
-        <img src="{{ url_for('static', filename='images/fallback-bg.jpg') }}" style="display:none;" id="fallback-img">
-    </video>
-    <div id="video-loading-overlay" class="video-loading">
-        <div class="video-loading-spinner"></div>
-        <div class="video-loading-text">Loading Secure Environment...</div>
-    </div>
-</div>
 
 <!-- Main Content Container -->
 <div class="results-container">
@@ -21,6 +10,121 @@
     </div>
 
     <!-- Section 1: Summary -->
+    <div class="result-card {% if results.threat_assessment.score >= 70 %}danger-card{% else %}safe-card{% endif %}">
+        <div class="card-header">
+            <h2>
+                <i class="fas fa-shield-alt"></i>
+                Threat Assessment
+            </h2>
+        </div>
+
+        <div class="card-body">
+
+            <div class="row">
+
+                <!-- Left Side -->
+                <div class="col-lg-7">
+
+                    <div class="row">
+
+                        <div class="col-md-4">
+                            <div class="stat-card {% if results.threat_assessment.score >= 70 %}danger-card{% endif %}">
+                                <div class="stat-value">
+                                    {{ results.get('threat_assessment', {}).get('score', 0) }}
+                                </div>
+                                <div class="stat-label">
+                                    Threat Score
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="col-md-4">
+                            <div class="stat-card {% if results.threat_assessment.score >= 70 %}danger-card{% endif %}">
+                                <div class="stat-value {% if results.threat_assessment.score >= 70 %}text-danger{% else %}text-success{% endif %}">
+                                    {{ results.get('threat_assessment', {}).get('risk_level', 'Safe') }}
+                                </div>
+                                <div class="stat-label">
+                                    Risk Level
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="col-md-4">
+                            <div class="stat-card {% if results.threat_assessment.score >= 70 %}danger-card{% endif %}">
+                                <div class="stat-value {% if results.threat_assessment.score >= 70 %}text-danger{% else %}text-success{% endif %}">
+                                    {{ results.get('threat_assessment', {}).get('confidence', 'High') }}
+                                </div>
+                                <div class="stat-label">
+                                    Confidence
+                                </div>
+                            </div>
+                        </div>
+
+                    </div>
+
+                    <div class="stat-card classification-card {% if results.threat_assessment.score >= 70 %}danger-card{% endif %}">
+                        <div class="stat-label">
+                            Classification
+                        </div>
+
+                        <div class="stat-value classification-value {% if results.threat_assessment.score >= 70 %}text-danger{% else %}text-success{% endif %}">
+                            {{ results.get('threat_assessment', {}).get('classification', 'Benign File') }}
+                        </div>
+                    </div>
+
+                </div>
+
+                
+                <div class="col-lg-5">
+
+                    <div class="result-card {% if results.threat_assessment.score >= 70 %}danger-card{% endif %}">
+
+                        <div class="card-header">
+                            <h2>
+                                <i class="fas fa-crosshairs"></i>
+                                IOC Analysis
+                            </h2>
+                        </div>
+
+                        <div class="card-body">
+
+                            <h4>
+                                Total Indicators:
+                                {{ results.iocs.total if results.iocs else 0 }}
+                            </h4>
+
+                            {% if results.iocs %}
+
+                                {% for category, indicators in results.iocs.findings.items() %}
+
+                                    {% if indicators %}
+
+                                        <div class="ioc-section">
+                                            <h5>{{ category }}</h5>
+
+                                            <ul>
+                                                {% for indicator in indicators %}
+                                                    <li>{{ indicator }}</li>
+                                                {% endfor %}
+                                            </ul>
+                                        </div>
+
+                                    {% endif %}
+
+                                {% endfor %}
+
+                            {% endif %}
+
+                        </div>
+
+                    </div>
+
+                </div>
+
+            </div>
+
+        </div>
+    </div>
     <div class="result-card {% if results.scanners.is_malicious %}danger-card{% endif %}">
         <div class="card-header">
             <h2><i class="fas fa-file-alt"></i> Summary</h2>
@@ -46,25 +150,38 @@
                         {% if results.scanners.is_malicious %}
                             <div class="alert-danger">
                                 <h4><i class="fas fa-skull-crossbones"></i> Malicious Content Detected</h4>
+                                {% if results.scanners.detected_by %}
                                 <p>Detected by {{ results.scanners.detected_by|join(', ') }}</p>
+                                {% endif %}
                             </div>
+
                         {% else %}
                             <div class="alert-success">
                                 <h4><i class="fas fa-check-circle"></i> No Malicious Content Found</h4>
                             </div>
                         {% endif %}
+                        <div class="upx-inline-status">
 
-                        {% if results.upx.packed %}
-                            <div class="alert-warning">
-                                <h4><i class="fas fa-archive"></i> UPX Packed</h4>
-                                <p>Original: {{ results.upx.original_size|filesizeformat }}</p>
-                                {% if results.upx.unpacked %}
-                                    <p>Unpacked: {{ results.upx.unpacked_size|filesizeformat }}</p>
-                                {% else %}
-                                    <p class="error-text">Failed to unpack: {{ results.upx.error }}</p>
-                                {% endif %}
-                            </div>
-                        {% endif %}
+                            <strong>Packer:</strong>
+
+                            {% if results.upx.packed and results.upx.unpacked %}
+                                <span class="badge bg-warning">
+                                    PACKED & UNPACKED
+                                </span>
+
+                            {% elif results.upx.packed %}
+                                <span class="badge bg-danger">
+                                    PACKED
+                                </span>
+
+                            {% else %}
+                                <span class="badge bg-success">
+                                    NOT PACKED
+                                </span>
+
+                            {% endif %}
+
+                        </div>
                     </div>
                 </div>
             </div>
@@ -407,729 +524,10 @@
     </div>
 </div>
 
-<style>
-    /* Video container styling */
-    #video-container {
-        position: fixed;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
-        z-index: -1;
-        overflow: hidden;
-        background: radial-gradient(circle, rgba(11,18,31,1) 0%, rgba(5,12,21,1) 100%);
-    }
-
-    #bg-video {
-        position: absolute;
-        top: 50%;
-        left: 50%;
-        min-width: 100%;
-        min-height: 100%;
-        width: auto;
-        height: auto;
-        transform: translate(-50%, -50%);
-        opacity: 0;
-        filter: blur(2px) brightness(0.8);
-        object-fit: cover;
-        transition: opacity 1.5s ease-out;
-    }
-
-    /* Loading overlay styling */
-    .video-loading {
-        position: fixed;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
-        background: rgba(11, 18, 31, 0.95);
-        display: flex;
-        flex-direction: column;
-        justify-content: center;
-        align-items: center;
-        z-index: 999;
-        color: #39ff14;
-        font-family: monospace;
-        transition: opacity 0.5s ease;
-    }
-
-    .video-loading-spinner {
-        width: 50px;
-        height: 50px;
-        border: 3px solid rgba(57, 255, 20, 0.3);
-        border-radius: 50%;
-        border-top-color: #39ff14;
-        animation: spin 1s linear infinite;
-        margin-bottom: 15px;
-    }
-
-    .video-loading-text {
-        margin-top: 15px;
-        font-size: 1.1rem;
-        text-align: center;
-        text-shadow: 0 0 5px #39ff14;
-    }
-
-    @keyframes spin {
-        to { transform: rotate(360deg); }
-    }
-
-    /* Main content styling */
-    .results-container {
-        position: relative;
-        z-index: 10;
-        background: rgba(11, 18, 31, 0.85);
-        border-radius: 8px;
-        padding: 20px;
-        margin: 20px auto;
-        max-width: 1200px;
-        box-shadow: 0 0 30px rgba(0,0,0,0.5);
-    }
-
-    /* Tabs styling */
-    .tabs-container {
-        margin-top: 15px;
-    }
-
-    .nav-tabs {
-        border-bottom: 1px solid rgba(57, 255, 20, 0.3);
-    }
-
-    .nav-tabs .nav-link {
-        color: #a5d6a7;
-        border: 1px solid transparent;
-        border-top-left-radius: 4px;
-        border-top-right-radius: 4px;
-        padding: 10px 15px;
-        margin-right: 5px;
-        font-size: 0.9rem;
-        transition: all 0.3s ease;
-    }
-
-    .nav-tabs .nav-link:hover {
-        border-color: rgba(57, 255, 20, 0.3);
-        color: #39ff14;
-    }
-
-    .nav-tabs .nav-link.active {
-        color: #39ff14;
-        background-color: rgba(11, 18, 31, 0.9);
-        border-color: rgba(57, 255, 20, 0.3);
-        border-bottom-color: transparent;
-    }
-
-    .tab-content {
-        padding: 15px 0;
-    }
-
-    /* Strings section styling */
-    .strings-controls {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        margin-bottom: 15px;
-    }
-
-    .search-box {
-        position: relative;
-        flex-grow: 1;
-    }
-
-    .search-box i {
-        position: absolute;
-        left: 10px;
-        top: 10px;
-        color: #39ff14;
-    }
-
-    .search-box input {
-        width: 100%;
-        padding: 8px 10px 8px 35px;
-        background: rgba(20, 25, 30, 0.8);
-        border: 1px solid #39ff14;
-        border-radius: 4px;
-        color: white;
-        transition: all 0.3s ease;
-    }
-
-    .search-box input:focus {
-        outline: none;
-        box-shadow: 0 0 10px rgba(57, 255, 20, 0.3);
-    }
-
-    .count-badge {
-        background: rgba(57, 255, 20, 0.2);
-        padding: 5px 10px;
-        border-radius: 4px;
-        font-size: 0.9rem;
-        margin-left: 10px;
-    }
-
-    .strings-grid {
-        display: grid;
-        grid-template-columns: 1fr;
-        gap: 5px;
-        max-height: 500px;
-        overflow-y: auto;
-    }
-
-    .string-item {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        background: rgba(20, 25, 30, 0.8);
-        padding: 8px 12px;
-        border-radius: 4px;
-        border-left: 3px solid #39ff14;
-        transition: all 0.2s ease;
-    }
-
-    .string-item:hover {
-        background: rgba(30, 35, 40, 0.9);
-    }
-
-    .string-item code {
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        font-family: monospace;
-    }
-
-    .copy-btn {
-        background: transparent;
-        border: none;
-        color: #39ff14;
-        cursor: pointer;
-        padding: 0 5px;
-        transition: color 0.2s;
-    }
-
-    .copy-btn:hover {
-        color: #a5d6a7;
-    }
-
-    /* Neon title animation */
-    .neon-title {
-        color: #39ff14;
-        font-size: 2.5rem;
-        margin-bottom: 0.5rem;
-        text-shadow: 0 0 5px #39ff14;
-        animation: neon-pulse 1.5s infinite alternate;
-    }
-
-    @keyframes neon-pulse {
-        from {
-            text-shadow: 0 0 5px #39ff14, 0 0 10px #39ff14;
-        }
-        to {
-            text-shadow: 0 0 10px #39ff14, 0 0 20px #39ff14, 0 0 30px #39ff14;
-        }
-    }
-
-    /* Card styling */
-    .result-card {
-        background: rgba(20, 25, 30, 0.8);
-        border-radius: 8px;
-        margin-bottom: 20px;
-        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
-        border: 1px solid rgba(57, 255, 20, 0.1);
-    }
-
-    .result-card.danger-card {
-        border-left: 4px solid #ff4444;
-    }
-
-    .card-header {
-        padding: 15px 20px;
-        border-bottom: 1px solid rgba(57, 255, 20, 0.1);
-    }
-
-    .card-header h2 {
-        margin: 0;
-        color: #39ff14;
-        font-size: 1.5rem;
-    }
-
-    .card-body {
-        padding: 20px;
-    }
-
-    /* Alert boxes */
-    .alert-danger {
-        background: rgba(255, 68, 68, 0.15);
-        border-left: 4px solid #ff4444;
-        padding: 15px;
-        margin-bottom: 15px;
-        border-radius: 4px;
-    }
-
-    .alert-success {
-        background: rgba(57, 255, 20, 0.15);
-        border-left: 4px solid #39ff14;
-        padding: 15px;
-        margin-bottom: 15px;
-        border-radius: 4px;
-    }
-
-    .alert-warning {
-        background: rgba(255, 193, 7, 0.15);
-        border-left: 4px solid #ffc107;
-        padding: 15px;
-        margin-bottom: 15px;
-        border-radius: 4px;
-    }
-
-    /* Info grid */
-    .info-grid {
-        display: grid;
-        grid-template-columns: auto 1fr;
-        gap: 10px 15px;
-    }
-
-    .info-label {
-        color: #a5d6a7;
-        font-weight: bold;
-    }
-
-    .info-value {
-        color: #ffffff;
-        word-break: break-all;
-    }
-
-    /* Status boxes */
-    .error-box, .warning-box, .success-box, .info-box, .danger-box {
-        padding: 15px;
-        border-radius: 4px;
-        margin-bottom: 15px;
-    }
-
-    .error-box {
-        background: rgba(255, 68, 68, 0.15);
-        border-left: 4px solid #ff4444;
-    }
-
-    .warning-box {
-        background: rgba(255, 193, 7, 0.15);
-        border-left: 4px solid #ffc107;
-    }
-
-    .success-box {
-        background: rgba(57, 255, 20, 0.15);
-        border-left: 4px solid #39ff14;
-    }
-
-    .info-box {
-        background: rgba(33, 150, 243, 0.15);
-        border-left: 4px solid #2196f3;
-    }
-
-    .danger-box {
-        background: rgba(255, 68, 68, 0.15);
-        border-left: 4px solid #ff4444;
-    }
-
-    /* Scanner table */
-    .scanner-table-container {
-        overflow-x: auto;
-    }
-
-    .scanner-table {
-        width: 100%;
-        border-collapse: collapse;
-    }
-
-    .scanner-table th, .scanner-table td {
-        padding: 10px 15px;
-        text-align: left;
-        border-bottom: 1px solid rgba(57, 255, 20, 0.1);
-    }
-
-    .scanner-table th {
-        color: #39ff14;
-        font-weight: bold;
-    }
-
-    .scanner-table tr:hover {
-        background: rgba(57, 255, 20, 0.05);
-    }
-
-    .danger-row {
-        background: rgba(255, 68, 68, 0.1);
-    }
-
-    /* YARA stats */
-    .yara-stats {
-        display: flex;
-        gap: 15px;
-        margin-bottom: 20px;
-    }
-
-    .stat-card {
-        flex: 1;
-        background: rgba(20, 25, 30, 0.8);
-        border-radius: 8px;
-        padding: 15px;
-        text-align: center;
-        border: 1px solid rgba(57, 255, 20, 0.1);
-    }
-
-    .stat-card.danger-card {
-        border-left: 4px solid #ff4444;
-    }
-
-    .stat-value {
-        font-size: 2rem;
-        color: #39ff14;
-        font-weight: bold;
-        margin-bottom: 5px;
-    }
-
-    .stat-label {
-        color: #a5d6a7;
-        font-size: 0.9rem;
-    }
-
-    /* YARA matches */
-    .yara-match-card {
-        background: rgba(20, 25, 30, 0.8);
-        border-radius: 8px;
-        padding: 15px;
-        margin-bottom: 15px;
-        border: 1px solid rgba(57, 255, 20, 0.1);
-    }
-
-    .match-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        margin-bottom: 10px;
-    }
-
-    .rule-name {
-        color: #39ff14;
-        font-weight: bold;
-        font-size: 1.1rem;
-    }
-
-    .rule-tags {
-        display: flex;
-        gap: 5px;
-    }
-
-    .tag {
-        background: rgba(57, 255, 20, 0.2);
-        color: #39ff14;
-        padding: 3px 8px;
-        border-radius: 4px;
-        font-size: 0.8rem;
-    }
-
-    .rule-description {
-        color: #a5d6a7;
-        margin-bottom: 10px;
-        font-style: italic;
-    }
-
-    .match-strings {
-        background: rgba(11, 18, 31, 0.8);
-        padding: 10px;
-        border-radius: 4px;
-        margin-top: 10px;
-    }
-
-    /* Metadata grid */
-    .metadata-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-        gap: 10px;
-    }
-
-    .metadata-item {
-        background: rgba(20, 25, 30, 0.8);
-        padding: 10px;
-        border-radius: 4px;
-        border-left: 3px solid #39ff14;
-    }
-
-    .metadata-key {
-        color: #39ff14;
-        font-weight: bold;
-        margin-bottom: 5px;
-    }
-
-    .metadata-value {
-        color: #ffffff;
-        word-break: break-all;
-    }
-
-    /* Hashes */
-    .hashes-container {
-        display: grid;
-        grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
-        gap: 15px;
-    }
-
-    .hash-card {
-        background: rgba(20, 25, 30, 0.8);
-        border-radius: 8px;
-        overflow: hidden;
-        border: 1px solid rgba(57, 255, 20, 0.1);
-    }
-
-    .hash-header {
-        background: rgba(57, 255, 20, 0.1);
-        padding: 10px 15px;
-        color: #39ff14;
-        font-weight: bold;
-    }
-
-    .hash-value {
-        padding: 15px;
-        color: #ffffff;
-        word-break: break-all;
-        cursor: pointer;
-        transition: background 0.2s;
-    }
-
-    .hash-value:hover {
-        background: rgba(57, 255, 20, 0.05);
-    }
-
-    /* Radare2 code block */
-    .code-block {
-        background: rgba(11, 18, 31, 0.8);
-        padding: 15px;
-        border-radius: 4px;
-        overflow-x: auto;
-        font-family: monospace;
-        color: #a5d6a7;
-        border-left: 3px solid #39ff14;
-    }
-
-    /* Buttons */
-    .btn-cyber {
-        display: inline-block;
-        background: rgba(57, 255, 20, 0.2);
-        color: #39ff14;
-        padding: 8px 15px;
-        border-radius: 4px;
-        text-decoration: none;
-        transition: all 0.3s ease;
-        border: 1px solid #39ff14;
-        margin-top: 10px;
-    }
-
-    .btn-cyber:hover {
-        background: rgba(57, 255, 20, 0.3);
-        color: #ffffff;
-        text-decoration: none;
-    }
-
-    .btn-cyber-outline {
-        display: inline-block;
-        background: transparent;
-        color: #39ff14;
-        padding: 8px 15px;
-        border-radius: 4px;
-        text-decoration: none;
-        transition: all 0.3s ease;
-        border: 1px solid #39ff14;
-        margin-top: 10px;
-    }
-
-    .btn-cyber-outline:hover {
-        background: rgba(57, 255, 20, 0.1);
-        color: #ffffff;
-        text-decoration: none;
-    }
-
-    /* Responsive adjustments */
-    @media (max-width: 768px) {
-        .results-container {
-            padding: 15px;
-            margin: 15px;
-        }
-
-        .row {
-            flex-direction: column;
-        }
-
-        .col-md-6 {
-            width: 100%;
-        }
-
-        .hashes-container {
-            grid-template-columns: 1fr;
-        }
-
-        .metadata-grid {
-            grid-template-columns: 1fr;
-        }
-
-        .yara-stats {
-            flex-direction: column;
-        }
-    }
-</style>
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    // Video configuration - update with your actual video filenames
-    const videoConfig = {
-        videos: [
-            "cyber_network.mp4",
-            "matrix_code.mp4",
-            "neon_grid.mp4",
-            "binary_flow.mp4",
-            "digital_circuits.mp4",
-            "hacker_ui.mp4",
-            "tech_waves.mp4",
-            "data_stream.mp4",
-            "quantum_dots.mp4"
-        ],
-        basePath: "{{ url_for('static', filename='videos/') }}",
-        fallbackImage: "{{ url_for('static', filename='images/fallback-bg.jpg') }}",
-        loadingOverlay: document.getElementById('video-loading-overlay'),
-        maxRetries: 3,
-        retryDelay: 1000
-    };
-
-    // Robust video manager with multiple fallbacks
-    const videoManager = {
-        currentVideo: null,
-        retryCount: 0,
-
-        init: function() {
-            console.log("Initializing video background system");
-            this.loadRandomVideo();
-        },
-
-        loadRandomVideo: function() {
-            const randomIndex = Math.floor(Math.random() * videoConfig.videos.length);
-            this.currentVideo = videoConfig.videos[randomIndex];
-            this.loadVideo(this.currentVideo);
-        },
-
-        loadVideo: function(videoName) {
-            const videoElement = document.getElementById('bg-video');
-            const fallbackImg = document.getElementById('fallback-img');
-
-            if (!videoElement) {
-                console.error("Video element not found");
-                this.activateFallback();
-                return;
-            }
-
-            console.log(`Attempting to load: ${videoConfig.basePath}${videoName}`);
-
-            // Reset video element
-            videoElement.innerHTML = '';
-            videoElement.style.opacity = '0';
-
-            // Create source element
-            const source = document.createElement('source');
-            source.src = videoConfig.basePath + videoName;
-            source.type = 'video/mp4';
-            videoElement.appendChild(source);
-
-            // Event handlers
-            const handleLoad = () => {
-                console.log(`Successfully loaded: ${videoName}`);
-                videoElement.style.opacity = '0.25';
-                this.hideLoading();
-
-                // Attempt playback
-                videoElement.play()
-                    .then(() => console.log("Video playback started"))
-                    .catch(err => {
-                        console.log("Autoplay blocked, trying muted:", err);
-                        videoElement.muted = true;
-                        videoElement.play()
-                            .then(() => console.log("Muted playback started"))
-                            .catch(e => {
-                                console.error("Failed to play video:", e);
-                                this.activateFallback();
-                            });
-                    });
-            };
-
-            const handleError = () => {
-                console.error(`Failed to load: ${videoName}`);
-                this.retryCount++;
-
-                if (this.retryCount <= videoConfig.maxRetries) {
-                    console.log(`Retrying (${this.retryCount}/${videoConfig.maxRetries})...`);
-                    setTimeout(() => this.loadRandomVideo(), videoConfig.retryDelay);
-                } else {
-                    console.log("Max retries reached");
-                    this.activateFallback();
-                }
-            };
-
-            // Set up event listeners
-            videoElement.onloadeddata = handleLoad;
-            videoElement.onerror = handleError;
-            videoElement.onended = () => {
-                console.log("Video ended, loading next");
-                this.retryCount = 0;
-                this.loadRandomVideo();
-            };
-
-            // Start loading
-            videoElement.load();
-        },
-
-        activateFallback: function() {
-            console.log("Activating fallback system");
-            const container = document.getElementById('video-container');
-            const videoElement = document.getElementById('bg-video');
-            const fallbackImg = document.getElementById('fallback-img');
-
-            if (!container) return;
-
-            // Hide video if exists
-            if (videoElement) {
-                videoElement.style.display = 'none';
-            }
-
-            // Show fallback image
-            if (fallbackImg) {
-                fallbackImg.style.display = 'block';
-                fallbackImg.style.width = '100%';
-                fallbackImg.style.height = '100%';
-                fallbackImg.style.objectFit = 'cover';
-                fallbackImg.style.opacity = '0.2';
-                fallbackImg.style.position = 'absolute';
-                fallbackImg.style.top = '0';
-                fallbackImg.style.left = '0';
-            }
-
-            // Ensure gradient background
-            container.style.background = `
-                radial-gradient(circle,
-                    rgba(11,18,31,1) 0%,
-                    rgba(5,12,21,1) 100%
-                )`;
-
-            this.hideLoading();
-        },
-
-        hideLoading: function() {
-            if (videoConfig.loadingOverlay) {
-                videoConfig.loadingOverlay.style.opacity = '0';
-                setTimeout(() => {
-                    videoConfig.loadingOverlay.style.display = 'none';
-                }, 500);
-            }
-        }
-    };
-
-    // Initialize with delay
-    setTimeout(() => {
-        videoManager.init();
-    }, 300);
-
-    // [Rest of your existing JavaScript functionality]
+    
     // Initialize tabs
     $('#securityTabs a').on('shown.bs.tab', function (e) {
         localStorage.setItem('securityActiveTab', $(e.target).attr('href'));

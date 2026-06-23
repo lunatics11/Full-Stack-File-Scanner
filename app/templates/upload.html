@@ -38,55 +38,11 @@
 </div>
 
 <script>
-// Video control with guaranteed stop
-(function() {
-    const video = document.getElementById('bg-video');
-    if (!video || window.location.pathname !== '/upload') return;
-
-    // Start with video visible and playing
-    video.style.display = 'block';
-    video.style.opacity = '0.25';
-    video.play().catch(e => console.log("Video play attempt:", e));
-
-    // 3.5 second smooth slowdown
-    const duration = 3500;
-    const startTime = performance.now();
-
-    function animate() {
-        const elapsed = performance.now() - startTime;
-        const progress = Math.min(elapsed / duration, 1);
-
-        // Ease-out effect for smooth deceleration
-        const easeOut = 1 - Math.pow(1 - progress, 3);
-
-        // Slow down playback (100% → 0%)
-        video.playbackRate = 1 - easeOut;
-
-        // Apply visual effects
-        video.style.opacity = 0.25 - (0.25 * easeOut);
-        video.style.filter = `blur(${3 * easeOut}px) brightness(${1 - (0.3 * easeOut)})`;
-
-        if (progress < 1) {
-            requestAnimationFrame(animate);
-        } else {
-            // Final stop - pause and hide video
-            video.pause();
-            video.style.display = 'none';
-        }
-    }
-
-    requestAnimationFrame(animate);
-})();
 
 // Prepare for upload
 function prepareUpload() {
-    const video = document.getElementById('bg-video');
-    if (video) {
-        video.pause();
-        video.style.display = 'none';
-    }
-
     const uploadBtn = document.querySelector('.upload-btn');
+
     if (uploadBtn) {
         uploadBtn.disabled = true;
         uploadBtn.textContent = 'Uploading...';

@@ -2,6 +2,7 @@ import yara
 import os
 from flask import current_app
 
+
 class YaraScanner:
     def __init__(self):
         self.rules = None
@@ -9,61 +10,135 @@ class YaraScanner:
         self._load_rules()
 
     def _load_rules(self):
-        """Robust YARA rule loading with accurate counting"""
+        """Load YARA rules and report useful diagnostics"""
+
         try:
-            rules_path = os.path.join(current_app.config['YARA_RULES_DIR'], 'yara-rules-full.yar')
-            if os.path.exists(rules_path):
-                # First count total rules in file
-                with open(rules_path, 'r', encoding='utf-8') as f:
-                    total_file_rules = sum(1 for line in f if line.strip().startswith('rule '))
-                
-                # Compile rules with error reporting
-                self.rules = yara.compile(
-                    filepath=rules_path,
-                    error_on_warning=False  # Changed to avoid namespace error
+            rules_path = os.path.join(
+                current_app.config['YARA_RULES_DIR'],
+                'yara-rules-full.yar'
+            )
+
+            current_app.logger.info(
+                f"[YARA] Looking for rules at: {rules_path}"
+            )
+
+            if not os.path.exists(rules_path):
+                current_app.logger.error(
+                    f"[YARA] Rules file not found: {rules_path}"
                 )
-                
-                # Accurate rule counting
-                self.rule_count = len([r for r in self.rules])  # Safe way to count
-                
-                current_app.logger.info(
-                    f"YARA rules loaded: {self.rule_count}/{total_file_rules} rules processed. "
-                    f"Difference of {total_file_rules - self.rule_count} rules filtered."
+                return
+
+            # Count rules in source file
+            total_file_rules = 0
+
+            try:
+                with open(rules_path, "r", encoding="utf-8", errors="ignore") as f:
+                    for line in f:
+                        if line.strip().startswith("rule "):
+                            total_file_rules += 1
+            except Exception as e:
+                current_app.logger.warning(
+                    f"[YARA] Could not count rules: {e}"
                 )
-                
-            else:
-                current_app.logger.error("YARA rules file not found at %s", rules_path)
-                
+
+            current_app.logger.info(
+                f"[YARA] Source file contains approximately "
+                f"{total_file_rules} rules"
+            )
+
+            # Compile rules
+            self.rules = yara.compile(
+                filepath=rules_path,
+                error_on_warning=False
+            )
+
+            # Count compiled rules
+            try:
+                self.rule_count = len([r for r in self.rules])
+            except Exception:
+                self.rule_count = total_file_rules
+
+            current_app.logger.info(
+                f"[YARA] Successfully loaded "
+                f"{self.rule_count} rules"
+            )
+
         except yara.SyntaxError as e:
-            current_app.logger.error(f"YARA syntax error in rules: {str(e)}")
+            current_app.logger.error(
+                f"[YARA] Syntax error: {e}"
+            )
+
         except Exception as e:
-            current_app.logger.error(f"YARA loading failed: {str(e)}")
+            current_app.logger.exception(
+                f"[YARA] Failed to load rules: {e}"
+            )
 
     def scan_file(self, filepath):
-        """Reliable scanning with proper error handling"""
+        """Scan a file using loaded YARA rules"""
+
         if not self.rules:
-            return {'error': 'YARA rules not loaded', 'status': 'failed', 'rules_loaded': 0}
-        
+            return {
+                "status": "failed",
+                "error": "YARA rules not loaded",
+                "rules_loaded": 0
+            }
+
+        if not os.path.exists(filepath):
+            return {
+                "status": "failed",
+                "error": f"File not found: {filepath}",
+                "rules_loaded": self.rule_count
+            }
+
         try:
+            current_app.logger.info(
+                f"[YARA] Scanning file: {filepath}"
+            )
+
             matches = self.rules.match(
                 filepath,
-                timeout=120,
-                externals={'filename': os.path.basename(filepath)}
+                timeout=120
             )
-            
+
+            current_app.logger.info(
+                f"[YARA] Match count: {len(matches)}"
+            )
+
+            parsed_matches = []
+
+            for match in matches:
+                parsed_matches.append({
+                    "rule": match.rule,
+                    "tags": list(match.tags),
+                    "meta": dict(match.meta)
+                })
+
             return {
-                'status': 'completed',
-                'matches': [{
-                    'rule': match.rule,
-                    'tags': list(match.tags),
-                    'meta': dict(match.meta),
-                    'strings': [str(s) for s in match.strings]
-                } for match in matches],
-                'malicious': len(matches) > 0,
-                'rules_loaded': self.rule_count
+                "status": "completed",
+                "malicious": len(matches) > 0,
+                "match_count": len(matches),
+                "rules_loaded": self.rule_count,
+                "matches": parsed_matches
             }
-            
+
         except yara.TimeoutError:
-            return {'error': 'YARA scan timed out', 'status': 'failed', 'rules_loaded': self.rule_count}
+            current_app.logger.error(
+                f"[YARA] Scan timeout for {filepath}"
+            )
+
+            return {
+                "status": "failed",
+                "error": "YARA scan timed out",
+                "rules_loaded": self.rule_count
+            }
+
         except Exception as e:
-            return {'error': f"Scan failed: {str(e)}", 'status': 'failed', 'rules_loaded': self.rule_count}
+            current_app.logger.exception(
+                f"[YARA] Scan failed: {e}"
+            )
+
+            return {
+                "status": "failed",
+                "error": str(e),
+                "rules_loaded": self.rule_count
+            }

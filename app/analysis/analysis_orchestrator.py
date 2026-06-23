@@ -59,8 +59,16 @@ def analyze_file(filepath, progress_callback):
         update_progress(20, 'Checking for UPX packing')
         from .upx_unpacker import unpack_if_upx
         upx_result = unpack_if_upx(filepath)
+
+        print("\n========== UPX RESULT ==========")
+        print(upx_result)
+        print("================================\n")
+
         results['upx'].update(upx_result)
+
         scan_target = upx_result.get('unpacked_path', filepath)
+
+        print(f"SCAN TARGET: {scan_target}")
 
         # Stage 3: Basic analysis (30-60%)
         update_progress(30, 'Running exiftool analysis')
@@ -80,15 +88,23 @@ def analyze_file(filepath, progress_callback):
         results['readpe']['output'] = readpe_analysis(scan_target)
 
         update_progress(60, 'Extracting strings')
+
+        from app.analysis.ioc_analyzer import analyze_iocs
         from .strings_analyzer import strings_analysis
         strings_result = strings_analysis(scan_target)
         results['strings'].update(strings_result)
+        ioc_results = analyze_iocs(
+            results["strings"].get("strings", [])
+        )
+
+        results["iocs"] = ioc_results
 
         # Stage 4: Security scanning (60-90%)
         update_progress(70, 'Running YARA scan')
         from .scanning import scan_yara
         yara_results = scan_yara(scan_target)
         results['scanners']['yara'].update(yara_results)
+
         
         update_progress(85, 'Running VirusTotal scan')
         from .scanning import scan_virustotal
@@ -97,7 +113,84 @@ def analyze_file(filepath, progress_callback):
 
         # Determine malicious status
         results['scanners']['is_malicious'] = vt_results.get('positives', 0) > 0 or bool(yara_results.get('matches', []))
-            
+
+        # Threat assessment
+
+        vt_hits = vt_results.get('positives', 0)
+        yara_hits = len(yara_results.get('matches', []))
+
+        score = 0
+
+        score += min(vt_hits * 2, 70)
+
+        if yara_hits > 0:
+            score += 20
+
+        ioc_count = results["iocs"]["total"]
+
+        score += min(ioc_count * 5, 20)
+
+        results['threat_assessment'] = {
+            'score': min(score, 100),
+            'classification': 'Unknown',
+            'risk_level': 'Low',
+            'confidence': 'Low'
+        }
+        
+
+        detections_text = str(vt_results).lower()
+
+        if any(x in detections_text for x in [
+            'downloader',
+            'fragtor'
+        ]):
+            classification = 'Downloader Trojan'
+
+        elif any(x in detections_text for x in [
+            'ransom',
+            'crypt'
+        ]):
+            classification = 'Ransomware'
+
+        elif any(x in detections_text for x in [
+            'backdoor'
+        ]):
+            classification = 'Backdoor'
+
+        else:
+            if vt_hits == 0 and yara_hits == 0:
+                classification = "Benign File"
+            else:
+                classification = "Generic Malware"
+
+        results['threat_assessment']['classification'] = classification
+
+        score = results['threat_assessment']['score']
+
+        if score == 0:
+            risk = 'Safe'
+        elif score >= 90:
+            risk = 'Critical'
+        elif score >= 70:
+            risk = 'High'
+        elif score >= 40:
+            risk = 'Medium'
+        else:
+            risk = 'Low'
+
+        results['threat_assessment']['risk_level'] = risk
+
+        if vt_hits == 0:
+            confidence = 'High'
+        elif vt_hits > 40:
+            confidence = 'High'
+        elif vt_hits > 10:
+            confidence = 'Medium'
+        else:
+            confidence = 'Low'
+
+        results['threat_assessment']['confidence'] = confidence
+
     except Exception as e:
         logger.error(f"Analysis failed: {str(e)}")
         results['error'] = str(e)
@@ -112,4 +205,11 @@ def analyze_file(filepath, progress_callback):
             except Exception as e:
                 logger.error(f"Cleanup failed: {str(e)}")
 
+    if 'threat_assessment' not in results:
+        results['threat_assessment'] = {
+            'score': 0,
+            'risk_level': 'Safe',
+            'confidence': 'High',
+            'classification': 'Benign File'
+        }
     return results
