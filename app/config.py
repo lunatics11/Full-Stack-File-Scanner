@@ -2,57 +2,69 @@ from dotenv import load_dotenv
 import os
 from pathlib import Path
 
+# Load .env (works locally, ignored on Render if not present)
+load_dotenv()
+
 
 class Config:
-    load_dotenv()
-    # Flask and Application Configuration
-    SECRET_KEY = os.getenv('SECRET_KEY')
-    UPLOAD_FOLDER = os.path.join(Path(__file__).parent.parent, 'static', 'uploads')
-    MAX_CONTENT_LENGTH = 32 * 1024 * 1024  # 32MB limit for file uploads
+    # Flask Configuration
+    SECRET_KEY = os.getenv(
+        "SECRET_KEY",
+        "change-this-secret-key-in-production"
+    )
 
-    # VirusTotal Configuration
+    UPLOAD_FOLDER = os.path.join(
+        Path(__file__).parent.parent,
+        "static",
+        "uploads"
+    )
 
-    VT_API_KEY = os.getenv('VIRUSTOTAL_API_KEY')
-    VT_TIMEOUT = 60  # Request timeout in seconds
-    VT_MAX_RETRIES = 3  # Max API retries
-    VT_RETRY_DELAY = 15  # Seconds between retries
-    VT_RATE_LIMIT_DELAY = 20  # Seconds between scans to avoid rate limiting
+    MAX_CONTENT_LENGTH = 32 * 1024 * 1024  # 32 MB
 
-    # YARA Rules Configuration
-    YARA_RULES_DIR = os.path.join(Path(__file__).parent.parent, 'data', 'yara')
-    YARA_RULES_PATH = os.path.abspath(os.path.join(
-        os.path.dirname(__file__),
-        '..', 'data', 'yara', 'yara-rules-full.yar'
-    ))
+    # VirusTotal
+    VT_API_KEY = os.getenv("VIRUSTOTAL_API_KEY")
+    VT_TIMEOUT = 60
+    VT_MAX_RETRIES = 3
+    VT_RETRY_DELAY = 15
+    VT_RATE_LIMIT_DELAY = 20
+
+    # YARA
+    YARA_RULES_DIR = os.path.join(
+        Path(__file__).parent.parent,
+        "data",
+        "yara"
+    )
+
+    YARA_RULES_PATH = os.path.abspath(
+        os.path.join(
+            os.path.dirname(__file__),
+            "..",
+            "data",
+            "yara",
+            "yara-rules-full.yar"
+        )
+    )
 
     @staticmethod
     def init_app(app):
-        """Initialize application configuration and validate required settings"""
-        # Validate VirusTotal API Key
+
+        # Create required directories
+        os.makedirs(app.config["UPLOAD_FOLDER"], exist_ok=True)
+        os.makedirs(app.config["YARA_RULES_DIR"], exist_ok=True)
+
+        # Warn if VirusTotal key is missing
         if not Config.VT_API_KEY:
-            raise ValueError(
-                "VirusTotal API key not configured.\n"
-                "Set VIRUSTOTAL_API_KEY in either:\n"
-                "1. Render environment variables (production)\n"
-                "2. .env file (development)"
+            app.logger.warning(
+                "VirusTotal API key not configured. "
+                "VirusTotal scanning will be disabled."
             )
 
-        # Ensure directories exist
-        required_dirs = [
-            app.config['UPLOAD_FOLDER'],
-            app.config['YARA_RULES_DIR']
-        ]
-
-        for directory in required_dirs:
-            os.makedirs(directory, exist_ok=True)
-
-        # Validate YARA rules file exists
-        if not os.path.exists(app.config['YARA_RULES_PATH']):
-            raise FileNotFoundError(
-                f"YARA rules file missing at {app.config['YARA_RULES_PATH']}\n"
-                "Please ensure the rules file is in the correct location."
+        # Warn if YARA rules are missing
+        if not os.path.exists(app.config["YARA_RULES_PATH"]):
+            app.logger.warning(
+                f"YARA rules not found at {app.config['YARA_RULES_PATH']}. "
+                "YARA scanning will be disabled."
             )
 
 
-# Instantiate the configuration
 config = Config()
