@@ -3,6 +3,7 @@ import os
 import hashlib
 import logging
 from functools import partial
+import shutil
 
 logger = logging.getLogger(__name__)
 
@@ -55,10 +56,16 @@ def analyze_file(filepath, progress_callback):
         update_progress(5, 'Initializing analysis')
         update_progress(10, 'Calculating hashes')
 
-        # Stage 2: Unpacking (20-30%)
-        update_progress(20, 'Checking for UPX packing')
-        from .upx_unpacker import unpack_if_upx
-        upx_result = unpack_if_upx(filepath)
+        if shutil.which("upx"):
+            update_progress(20, 'Checking for UPX packing')
+            from .upx_unpacker import unpack_if_upx
+            upx_result = unpack_if_upx(filepath)
+        else:
+            upx_result = {
+                'packed': False,
+                'unpacked': False,
+                'error': 'Unavailable in demo deployment'
+            }
 
         print("\n========== UPX RESULT ==========")
         print(upx_result)
@@ -71,17 +78,36 @@ def analyze_file(filepath, progress_callback):
         print(f"SCAN TARGET: {scan_target}")
 
         # Stage 3: Basic analysis (30-60%)
-        update_progress(30, 'Running exiftool analysis')
-        from .exiftool_analyzer import exiftool_analysis
-        results['exiftool']['data'] = exiftool_analysis(scan_target)
+        if shutil.which("exiftool"):
+            update_progress(30, 'Running exiftool analysis')
+            from .exiftool_analyzer import exiftool_analysis
+            results['exiftool']['data'] = exiftool_analysis(scan_target)
+        else:
+            results['exiftool'] = {
+                'error': 'Unavailable in demo deployment',
+                'data': {}
+            }
 
-        update_progress(40, 'Running PEframe analysis')
-        from .peframe_analyzer import peframe_analysis
-        results['peframe']['data'] = peframe_analysis(scan_target)
+        if shutil.which("peframe"):
+            update_progress(40, 'Running PEframe analysis')
+            from .peframe_analyzer import peframe_analysis
+            results['peframe']['data'] = peframe_analysis(scan_target)
+        else:
+            results['peframe'] = {
+                'error': 'Unavailable in demo deployment',
+                'data': {}
+            }
+            
 
-        update_progress(50, 'Running radare2 analysis')
-        from .radare2_analyzer import radare2_analysis
-        results['radare2']['data'] = radare2_analysis(scan_target)
+        if shutil.which("r2"):
+            update_progress(50, 'Running radare2 analysis')
+            from .radare2_analyzer import radare2_analysis
+            results['radare2']['data'] = radare2_analysis(scan_target)
+        else:
+            results['radare2'] = {
+                'error': 'Unavailable in demo deployment',
+                'data': {}
+            }
 
         update_progress(55, 'Running readpe analysis')
         from .readpe_analyzer import readpe_analysis

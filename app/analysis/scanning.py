@@ -1,6 +1,11 @@
 import os
 import requests
-import yara
+try:
+    import yara
+    YARA_AVAILABLE = True
+except ImportError:
+    yara = None
+    YARA_AVAILABLE = False
 import logging
 import hashlib
 import time
@@ -16,6 +21,12 @@ _yara_rule_count = 0
 _yara_initialized = False
 
 def _load_yara_rules():
+    
+    if not YARA_AVAILABLE:
+        logger.info("YARA not available - skipping initialization")
+        return False
+    
+    
     """Completely robust YARA rule loader with detailed error reporting"""
     global _yara_rules, _yara_rule_count, _yara_initialized
     
@@ -73,20 +84,30 @@ def _load_yara_rules():
 
 def scan_yara(filepath):
     """Perform YARA scan with all loaded rules"""
+
+    if not YARA_AVAILABLE:
+        return {
+            "error": "Unavailable in demo deployment",
+            "matches": [],
+            "rules_loaded": 0,
+            "status": "skipped"
+        }
+
     try:
         # Initialize scanner if not already done
         if 'yara_scanner' not in current_app.extensions:
             from app.scanners.yara_scanner import YaraScanner
             current_app.extensions['yara_scanner'] = YaraScanner()
-        
+
         scanner = current_app.extensions['yara_scanner']
         return scanner.scan_file(filepath)
-        
+
     except Exception as e:
         return {
             'error': f"YARA scan initialization failed: {str(e)}",
             'status': 'failed',
-            'rules_loaded': 0
+            'rules_loaded': 0,
+            'matches': []
         }
 
 
